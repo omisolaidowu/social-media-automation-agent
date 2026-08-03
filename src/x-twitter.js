@@ -111,7 +111,7 @@ async function clickContinueButton(page) {
       }
     }
   } catch (e) {
-    console.warn(`  ⚠️  XPath strategy failed: ${e.message}`);
+    console.warn(`  XPath strategy failed: ${e.message}`);
   }
 
   // Strategy 2: DOM walk — 3 levels up from <p>Continue</p>
@@ -130,8 +130,8 @@ async function clickContinueButton(page) {
 }
 
 async function loginToX(page) {
-  console.log(`  ⚠️  No cookie file — falling back to form login.`);
-  console.log(`     To skip this, export cookies to: ${COOKIE_PATH}`);
+  console.log(`  No cookie file — falling back to form login.`);
+  console.log(`  To skip this, export cookies to: ${COOKIE_PATH}`);
 
   await page.goto('https://x.com/i/flow/login', { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(1500);
@@ -146,7 +146,7 @@ async function loginToX(page) {
     console.log(`  → Login step ${step + 1}: ${state}`);
     await screenshot(page, `00-x-login-step${step + 1}-${state}`);
 
-    if (state === 'done') { console.log('  ✅ Logged in'); return; }
+    if (state === 'done') { console.log('  Logged in'); return; }
 
     if (state === 'rate_limited') {
       await screenshot(page, '00-x-rate-limited');
@@ -188,8 +188,8 @@ async function loginToX(page) {
       pTexts: [...document.querySelectorAll('p')].map(p => p.textContent.trim())
         .filter(Boolean).slice(0, 15),
     }));
-    console.warn('  ⚠️  Unknown — inputs:', JSON.stringify(snap.inputs));
-    console.warn('  ⚠️  <p> texts:', JSON.stringify(snap.pTexts));
+    console.warn(' Unknown — inputs:', JSON.stringify(snap.inputs));
+    console.warn('  <p> texts:', JSON.stringify(snap.pTexts));
     await settle(4000);
   }
   throw new Error('X login did not complete after 8 steps.');
@@ -203,7 +203,7 @@ export async function postToX(page, { text, imagePath }) {
     console.log(`  → Injecting cookies from ${COOKIE_PATH}…`);
     await injectXCookies(page);
   } else {
-    console.log(`  ℹ️  No cookie file at ${COOKIE_PATH} — will use form login`);
+    console.log(`No cookie file at ${COOKIE_PATH} — will use form login`);
   }
 
   // Navigate once (cookies already set above)
@@ -227,7 +227,7 @@ export async function postToX(page, { text, imagePath }) {
     await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
     await page.waitForSelector(SEL.loggedInProbe, { visible: true, timeout: 30_000 });
   } else {
-    console.log('  → Authenticated ✅');
+    console.log('  → Authenticated');
   }
 
   await screenshot(page, '01-x-home');
@@ -238,7 +238,7 @@ export async function postToX(page, { text, imagePath }) {
     await page.waitForSelector(SEL.composeTrigger, { visible: true, timeout: 8_000 });
     await page.click(SEL.composeTrigger);
   } catch {
-    console.log('  ℹ️  Sidebar button unavailable — trying feed compose…');
+    console.log('  Sidebar button unavailable — trying feed compose…');
     await page.waitForSelector(SEL.composeFallback, { visible: true, timeout: 10_000 });
     await page.click(SEL.composeFallback);
   }
@@ -292,12 +292,12 @@ export async function postToX(page, { text, imagePath }) {
   }, { timeout: 30_000 }).then(() => true).catch(() => false);
 
   if (!previewAppeared) {
-    console.warn('  ⚠️  Upload preview not detected — continuing anyway (file may still be attached)');
+    console.warn('  Upload preview not detected — continuing anyway (file may still be attached)');
   }
 
   await randomDelay(1000, 2000);
   await screenshot(page, '03-x-image-attached');
-  console.log('  ✅ Image upload attempted');
+  console.log('  Image upload attempted');
 
   // Post — single click only, no retry.
   console.log('  → Posting tweet…');
@@ -307,7 +307,7 @@ export async function postToX(page, { text, imagePath }) {
   // After clicking Post, X closes the modal and returns to the home feed.
   await settle(6000);
   await screenshot(page, '04-x-posted');
-  console.log('  ✅ Tweet submitted');
+  console.log('  Tweet submitted');
 
   // Verify
   console.log('  → Verifying tweet went live…');
@@ -324,6 +324,6 @@ export async function postToX(page, { text, imagePath }) {
     return a ? `https://x.com${a.getAttribute('href')}` : null;
   });
 
-  console.log(`  ✅ Verified! Tweet URL: ${postUrl ?? '(see screenshot)'}`);
+  console.log(`  Verified! Tweet URL: ${postUrl ?? '(see screenshot)'}`);
   return { success: true, postUrl };
 }

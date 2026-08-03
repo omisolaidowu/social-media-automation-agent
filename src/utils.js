@@ -47,7 +47,7 @@ export async function retry(fn, attempts = 3, baseMs = 1500) {
     } catch (err) {
       lastError = err;
       const wait = baseMs * 2 ** i;
-      console.warn(`  ⚠️  Attempt ${i + 1}/${attempts} failed — retrying in ${wait}ms…`);
+      console.warn(`  Attempt ${i + 1}/${attempts} failed — retrying in ${wait}ms…`);
       await new Promise(r => setTimeout(r, wait));
     }
   }

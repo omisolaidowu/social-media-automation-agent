@@ -2,26 +2,28 @@
  * index.js — Main entry point for the TestMu AI Social Poster Agent.
  *
  * Usage:
- *   node index.js --platform=linkedin
  *   node index.js --platform=x
- *   node index.js --platform=both
  *
  * Requires a .env file — copy .env.example and fill in your credentials.
  */
 
 import 'dotenv/config';
 import { Browser } from '@testmuai/browser-cloud';
-import { postToLinkedIn } from './src/linkedin.js';
 import { postToX } from './src/x-twitter.js';
 
 // ── Parse CLI flag ────────────────────────────────────────────────────────────
 const platformArg = process.argv.find(a => a.startsWith('--platform='));
-const platform    = platformArg ? platformArg.split('=')[1] : 'linkedin';
+const platform    = platformArg ? platformArg.split('=')[1] : 'x';
+
+if (platform !== 'x') {
+  console.error(`❌  Unsupported platform: "${platform}". This build only supports --platform=x`);
+  process.exit(1);
+}
 
 // ── Post content (from .env or hard-coded for a quick test) ──────────────────
 const POST_CONTENT = {
   text: process.env.POST_TEXT
-    ?? 'Just shipped a browser automation agent using TestMu AI Browser Cloud + Puppeteer 🚀\n\n#automation #ai #devtools',
+    ?? 'Just shipped a browser automation tool using TestMu AI Browser Cloud + Puppeteer 🚀\n\n#automation #devtools',
   imagePath: process.env.POST_IMAGE_PATH ?? './assets/post-image.png',
 };
 
@@ -36,10 +38,7 @@ function assertEnv(...vars) {
 }
 
 assertEnv('LT_USERNAME', 'LT_ACCESS_KEY');
-if (platform === 'linkedin' || platform === 'both')
-  assertEnv('LINKEDIN_EMAIL', 'LINKEDIN_PASSWORD');
-if (platform === 'x' || platform === 'both')
-  assertEnv('X_USERNAME', 'X_PASSWORD', 'X_EMAIL');
+assertEnv('X_USERNAME', 'X_PASSWORD', 'X_EMAIL');
 
 // ── Main orchestration ────────────────────────────────────────────────────────
 async function main() {
@@ -52,8 +51,8 @@ async function main() {
   const client = new Browser();
 
   // 2. Create a cloud session with stealth enabled
-  //    profileId persists login state — after the first run you won't need
-  //    to log in again unless the session cookie expires.
+  //    profileId persists cookies between runs — cookies are also injected
+  //    directly from cookies/x-cookies.json to bypass login entirely.
   const session = await client.sessions.create({
     adapter: 'puppeteer',
     stealthConfig: {
@@ -61,11 +60,11 @@ async function main() {
       randomizeUserAgent:   true,   // rotate realistic UA strings
       randomizeViewport:    true,   // ±20px viewport jitter
     },
-    profileId: `social-poster-${platform}`,  // persists cookies per platform
-    timeout:   600_000,                       // 10-minute session max
+    profileId: 'social-poster-x',
+    timeout:   600_000,             // 10-minute session max
     lambdatestOptions: {
       build: 'Social Poster Agent',
-      name:  `${platform} Post — ${new Date().toISOString()}`,
+      name:  `X Post — ${new Date().toISOString()}`,
       'LT:Options': {
         username:  process.env.LT_USERNAME,
         accessKey: process.env.LT_ACCESS_KEY,
@@ -81,27 +80,17 @@ async function main() {
   const page    = (await browser.pages())[0];
   await page.setViewport({ width: 1280, height: 800 });
 
-  const results = {};
+  let result;
 
   try {
-    // 4. Run the platform-specific agent(s)
-    if (platform === 'linkedin' || platform === 'both') {
-      results.linkedin = await postToLinkedIn(page, POST_CONTENT);
-    }
+    // 4. Run the X post flow
+    result = await postToX(page, POST_CONTENT);
 
-    if (platform === 'x' || platform === 'both') {
-      // For "both", navigate back to a neutral page before switching platforms
-      if (platform === 'both') await page.goto('about:blank');
-      results.x = await postToX(page, POST_CONTENT);
-    }
-
-    // 5. Report results
+    // 5. Report result
     console.log('\n═══════════════════════════════════════════════════════════');
-    console.log('🎉  Run complete — results:');
-    for (const [plt, res] of Object.entries(results)) {
-      const icon = res.success ? '✅' : '❌';
-      console.log(`  ${icon}  ${plt.padEnd(10)} ${res.postUrl ?? 'no URL captured'}`);
-    }
+    console.log('🎉  Run complete:');
+    const icon = result.success ? '✅' : '❌';
+    console.log(`  ${icon}  x   ${result.postUrl ?? 'no URL captured'}`);
     console.log('═══════════════════════════════════════════════════════════\n');
     console.log('📸  All step screenshots saved to ./screenshots/');
 
@@ -114,6 +103,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('\n❌  Fatal error:', err.message);
+  console.error('\n Fatal error:', err.message);
   process.exit(1);
 });
