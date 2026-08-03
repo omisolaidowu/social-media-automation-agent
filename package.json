@@ -5,7 +5,6 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "post:linkedin": "node index.js --platform=linkedin",
     "post:x": "node index.js --platform=x",
     "post:both": "node index.js --platform=both"
   },
