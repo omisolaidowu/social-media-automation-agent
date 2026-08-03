@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment variables — contains TestMu AI + X credentials
+.env
+
+# X session cookies — equivalent to your password, never commit
+cookies/*.json
+
+# TestMu AI cached credentials/session data
+.credentials/
+
+# TestMu AI profile storage (persisted cookies/localStorage per profileId)
+.profiles/
+
+# Screenshots generated on every run — not source, regenerable
+screenshots/
+
+# Your post image — personal asset, not part of the codebase
+assets/*
+!assets/.gitkeep
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.log

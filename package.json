@@ -1,0 +1,20 @@
+{
+  "name": "testmu-social-poster",
+  "version": "1.0.0",
+  "description": "Autonomous social media agent powered by TestMu AI Browser Cloud + Puppeteer",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "post:linkedin": "node index.js --platform=linkedin",
+    "post:x": "node index.js --platform=x",
+    "post:both": "node index.js --platform=both"
+  },
+  "dependencies": {
+    "@testmuai/browser-cloud": "^1.0.1",
+    "dotenv": "^16.6.1",
+    "puppeteer-core": "^25.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
