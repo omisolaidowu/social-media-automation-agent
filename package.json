@@ -5,8 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "post:x": "node index.js --platform=x",
-    "post:both": "node index.js --platform=both"
+    "post:x": "node index.js --platform=x"
   },
   "dependencies": {
     "@testmuai/browser-cloud": "^1.0.1",
