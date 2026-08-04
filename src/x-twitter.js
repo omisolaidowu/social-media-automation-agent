@@ -5,7 +5,7 @@
  */
 
 import { resolve } from 'path';
-import { screenshot, randomDelay, retry } from './utils.js';
+import { screenshot, randomDelay} from './utils.js';
 import { hasSavedCookies, injectXCookies } from '../scripts/load-cookies.js';
 
 const COOKIE_PATH = './cookies/x-cookies.json';
