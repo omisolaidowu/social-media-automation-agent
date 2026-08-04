@@ -1,15 +1,6 @@
-/**
- * x-twitter.js — Logs into X (Twitter), composes a post (text + image),
- * publishes it, then verifies it went live.
- *
- * This build relies entirely on cookie injection for authentication.
- * X rate-limits and blocks login attempts from cloud/datacenter IPs, so the
- * form login flow is not a reliable fallback and has been removed. If no
- * cookie file is present, the agent stops with instructions to export one
- * rather than attempting a login that is likely to fail.
- *
+/*
  * DOM facts confirmed from live inspection (July 2026):
- * Selectors may change if X updates its markup. Consider adding automated
+ * Selectors may change if the platform updates its markup. Consider adding automated
  * selector recovery if this is extended beyond a single-platform build.
  */
 
@@ -19,6 +10,7 @@ import { hasSavedCookies, injectXCookies } from '../scripts/load-cookies.js';
 
 const COOKIE_PATH = './cookies/x-cookies.json';
 
+// define the selectors
 const SEL = {
   loggedInProbe:     '[data-testid="SideNav_NewTweet_Button"]',
   composeTrigger:    '[data-testid="SideNav_NewTweet_Button"]',
@@ -62,9 +54,7 @@ async function dismissCookieBanner(page) {
 export async function postToX(page, { text, imagePath }) {
   console.log('\n X Agent starting…');
 
-  // Cookie injection is the only supported authentication path. If no
-  // cookie file exists, stop early with clear instructions instead of
-  // attempting a login flow that X is likely to block from a cloud IP.
+  // Cookie injection is the only supported authentication path
   if (!hasSavedCookies()) {
     throw new Error(
       `No cookie file found at ${COOKIE_PATH}.\n` +
@@ -125,20 +115,18 @@ export async function postToX(page, { text, imagePath }) {
     throw new Error(`Image file not found: ${absImagePath}\nCheck POST_IMAGE_PATH in your .env`);
   }
 
-  // Click the "Add photos or video" button to activate X's upload state.
+  // Click the "Add photos or video" button to activate X's upload state
   const mediaBtn = await page.$(SEL.mediaButton);
   if (!mediaBtn) throw new Error('"Add photos or video" button not found in compose toolbar');
   await mediaBtn.click();
   await settle(400);
 
-  // Upload via Puppeteer CDP (works in cloud — no OS dialog needed).
+  // Upload via Puppeteer CDP
   const fileInput = await page.$(SEL.fileInput);
   if (!fileInput) throw new Error('fileInput not found after clicking media button');
   await fileInput.uploadFile(absImagePath);
 
-  // Manually dispatch React-compatible change/input events.
-  // page.evaluate() runs in the browser, not Node, so the selector has to
-  // be passed in as an argument rather than closed over from SEL directly.
+  // Manually dispatch React-compatible change/input events
   await page.evaluate((sel) => {
     const input = document.querySelector(sel);
     if (!input) return;
@@ -146,8 +134,7 @@ export async function postToX(page, { text, imagePath }) {
     input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
   }, SEL.fileInput);
 
-  // Wait for the upload preview to appear. Same reasoning as above: the
-  // selector list has to be passed into the browser context explicitly.
+  // Wait for the upload preview to appear
   const previewAppeared = await page.waitForFunction((selectors) => {
     return selectors.some((s) => document.querySelector(s));
   }, { timeout: 30_000 }, SEL.uploadPreview).then(() => true).catch(() => false);
@@ -160,12 +147,12 @@ export async function postToX(page, { text, imagePath }) {
   await screenshot(page, '03-x-image-attached');
   console.log('  Image upload attempted');
 
-  // Post — single click only, no retry.
+  // Post — single click only, no retry
   console.log('  → Posting tweet…');
   await page.waitForSelector(SEL.tweetSubmitButton, { visible: true, timeout: 10_000 });
   await page.click(SEL.tweetSubmitButton);
 
-  // After clicking Post, X closes the modal and returns to the home feed.
+  // After clicking Post, X closes the modal and returns to the home feed
   await settle(6000);
   await screenshot(page, '04-x-posted');
   console.log('  Tweet submitted');

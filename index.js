@@ -16,14 +16,14 @@ const platformArg = process.argv.find(a => a.startsWith('--platform='));
 const platform    = platformArg ? platformArg.split('=')[1] : 'x';
 
 if (platform !== 'x') {
-  console.error(`❌  Unsupported platform: "${platform}". This build only supports --platform=x`);
+  console.error(` Unsupported platform: "${platform}". This build only supports --platform=x`);
   process.exit(1);
 }
 
 // ── Post content (from .env or hard-coded for a quick test) ──────────────────
 const POST_CONTENT = {
   text: process.env.POST_TEXT
-    ?? 'Just shipped a browser automation tool using TestMu AI Browser Cloud + Puppeteer 🚀\n\n#automation #devtools',
+    ?? 'Just shipped a browser automation tool using TestMu AI Browser Cloud + Puppeteer \n\n#automation #devtools',
   imagePath: process.env.POST_IMAGE_PATH ?? './assets/post-image.png',
 };
 
@@ -31,7 +31,7 @@ const POST_CONTENT = {
 function assertEnv(...vars) {
   const missing = vars.filter(v => !process.env[v]);
   if (missing.length) {
-    console.error(`❌  Missing required environment variables: ${missing.join(', ')}`);
+    console.error(` Missing required environment variables: ${missing.join(', ')}`);
     console.error('    Copy .env.example → .env and fill in your credentials.');
     process.exit(1);
   }
@@ -40,9 +40,9 @@ function assertEnv(...vars) {
 assertEnv('LT_USERNAME', 'LT_ACCESS_KEY');
 assertEnv('X_USERNAME', 'X_PASSWORD', 'X_EMAIL');
 
-// ── Main orchestration ────────────────────────────────────────────────────────
+// Main orchestration
 async function main() {
-  console.log('🤖 TestMu AI Social Poster Agent');
+  console.log('TestMu AI Social Poster Agent');
   console.log(`   Platform : ${platform}`);
   console.log(`   Post text: ${POST_CONTENT.text.slice(0, 60)}…`);
   console.log(`   Image    : ${POST_CONTENT.imagePath}\n`);
@@ -50,9 +50,7 @@ async function main() {
   // 1. Initialise the TestMu AI Browser SDK client
   const client = new Browser();
 
-  // 2. Create a cloud session with stealth enabled
-  //    profileId persists cookies between runs — cookies are also injected
-  //    directly from cookies/x-cookies.json to bypass login entirely.
+  // 2. Create a cloud session with stealth enableds
   const session = await client.sessions.create({
     adapter: 'puppeteer',
     stealthConfig: {
@@ -72,7 +70,7 @@ async function main() {
     },
   });
 
-  console.log(`🔗 Live session viewer: ${session.sessionViewerUrl}`);
+  console.log(`Live session viewer: ${session.sessionViewerUrl}`);
   console.log('   (Open this URL in your browser to watch the agent in real time)\n');
 
   // 3. Connect — returns a standard Puppeteer Browser object
@@ -88,17 +86,17 @@ async function main() {
 
     // 5. Report result
     console.log('\n═══════════════════════════════════════════════════════════');
-    console.log('🎉  Run complete:');
+    console.log(' Run complete:');
     const icon = result.success ? '✅' : '❌';
     console.log(`  ${icon}  x   ${result.postUrl ?? 'no URL captured'}`);
     console.log('═══════════════════════════════════════════════════════════\n');
-    console.log('📸  All step screenshots saved to ./screenshots/');
+    console.log('All step screenshots saved to ./screenshots/');
 
   } finally {
-    // 6. Always close browser and release the cloud session
+    // 6. Close browser and release the cloud session
     await browser.close();
     await client.sessions.release(session.id);
-    console.log('🏁  Session released. Done.');
+    console.log('Session released. Done.');
   }
 }
 
