@@ -2,8 +2,15 @@
  * x-twitter.js — Logs into X (Twitter), composes a post (text + image),
  * publishes it, then verifies it went live.
  *
+ * This build relies entirely on cookie injection for authentication.
+ * X rate-limits and blocks login attempts from cloud/datacenter IPs, so the
+ * form login flow is not a reliable fallback and has been removed. If no
+ * cookie file is present, the agent stops with instructions to export one
+ * rather than attempting a login that is likely to fail.
+ *
  * DOM facts confirmed from live inspection (July 2026):
- * Note that selectors may change: consider adding AI auto-healing
+ * Selectors may change if X updates its markup. Consider adding automated
+ * selector recovery if this is extended beyond a single-platform build.
  */
 
 import { resolve } from 'path';
@@ -17,15 +24,23 @@ const SEL = {
   composeTrigger:    '[data-testid="SideNav_NewTweet_Button"]',
   composeFallback:   '[data-testid="tweetTextarea_0_label"]',
   tweetTextarea:     'div[data-testid="tweetTextarea_0"]',
-  mediaUploadButton: 'input[data-testid="fileInput"]',
+  mediaButton:       'button[aria-label="Add photos or video"]',
+  fileInput:         'input[data-testid="fileInput"]',
+  uploadPreview: [
+    '[data-testid="attachments"]',
+    '[data-testid="tweetPhoto"]',
+    'img[src^="blob:"]',
+    '[data-testid="media-viewer-clip-container"]',
+  ],
   tweetSubmitButton: '[data-testid="tweetButton"]',
   profileLink:       'a[data-testid="AppTabBar_Profile_Link"]',
   firstTweet:        'article[data-testid="tweet"]:first-of-type',
+  permalinkSuffix:   'a[href*="/status/"]',
 };
 
 const settle = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ── Cookie banner ─────────────────────────────────────────────────────────────
+// Cookie banner
 
 async function dismissCookieBanner(page) {
   try {
@@ -44,169 +59,24 @@ async function dismissCookieBanner(page) {
   } catch { }
 }
 
-// Login helpers
-
-async function waitForLoginForm(page) {
-  await page.waitForFunction(() => {
-    const hasContinue = [...document.querySelectorAll('p')]
-      .some(p => p.textContent.trim() === 'Continue');
-    if (!hasContinue) return false;
-    const un = document.querySelector('#jf-input-username_or_email');
-    const pw = document.querySelector('#jf-input-password');
-    return (un && !un.inert) || (pw && !pw.inert);
-  }, { timeout: 20_000 });
-}
-
-async function detectLoginState(page) {
-  return page.evaluate(() => {
-    if (document.querySelector('[data-testid="SideNav_NewTweet_Button"]')) return 'done';
-    const body = document.body?.innerText ?? '';
-    if (/temporarily limited your login/i.test(body)) return 'rate_limited';
-    const challenge = document.querySelector('input[data-testid="ocfEnterTextTextInput"]');
-    if (challenge && !challenge.inert && challenge.offsetParent) return 'challenge';
-    const pw = document.querySelector('#jf-input-password');
-    if (pw && !pw.inert && pw.offsetParent) return 'password';
-    const un = document.querySelector('#jf-input-username_or_email');
-    if (un && !un.inert && un.offsetParent) return 'username';
-    return 'unknown';
-  });
-}
-
-async function typeIntoLoginField(page, fieldId, text) {
-  await page.evaluate((id) => {
-    const continueP = [...document.querySelectorAll('p')]
-      .find(p => p.textContent.trim() === 'Continue');
-    let input;
-    if (continueP) {
-      let ancestor = continueP.parentElement;
-      while (ancestor && ancestor !== document.body) {
-        input = ancestor.parentElement?.querySelector(`#${id}:not([inert])`);
-        if (input) break;
-        ancestor = ancestor.parentElement;
-      }
-    }
-    (input || document.getElementById(id))?.focus();
-  }, fieldId);
-  await settle(150);
-  await page.keyboard.down('Control');
-  await page.keyboard.press('KeyA');
-  await page.keyboard.up('Control');
-  await page.type(`#${fieldId}`, text, { delay: Math.floor(Math.random() * 60) + 40 });
-}
-
-async function clickContinueButton(page) {
-  await settle(400);
-
-  // Strategy 1: Puppeteer v22+ XPath syntax
-  try {
-    const btn = await page.$(
-      '::-p-xpath(//p[normalize-space(text())="Continue"]/parent::*/parent::*/parent::*)'
-    );
-    if (btn) {
-      const box = await btn.boundingBox();
-      if (box?.width > 0 && box?.height > 0) {
-        await btn.click();
-        console.log('  → Clicked Continue (XPath)');
-        return;
-      }
-    }
-  } catch (e) {
-    console.warn(`  XPath strategy failed: ${e.message}`);
-  }
-
-  // Strategy 2: DOM walk — 3 levels up from <p>Continue</p>
-  const clicked = await page.evaluate(() => {
-    const p = [...document.querySelectorAll('p')]
-      .find(el => el.textContent.trim() === 'Continue');
-    if (!p) return false;
-    const target = p.parentElement?.parentElement?.parentElement;
-    if (target) { target.click(); return true; }
-    return false;
-  });
-  if (clicked) { console.log('  → Clicked Continue (DOM walk)'); return; }
-
-  await screenshot(page, '00-x-no-continue-button');
-  throw new Error('Could not find Continue button — see screenshots/00-x-no-continue-button-*.png');
-}
-
-async function loginToX(page) {
-  console.log(`  No cookie file — falling back to form login.`);
-  console.log(`  To skip this, export cookies to: ${COOKIE_PATH}`);
-
-  await page.goto('https://x.com/i/flow/login', { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  await settle(1500);
-  await dismissCookieBanner(page);
-
-  console.log('  → Waiting for login form…');
-  await waitForLoginForm(page);
-  await screenshot(page, '00-x-login-ready');
-
-  for (let step = 0; step < 8; step++) {
-    const state = await detectLoginState(page);
-    console.log(`  → Login step ${step + 1}: ${state}`);
-    await screenshot(page, `00-x-login-step${step + 1}-${state}`);
-
-    if (state === 'done') { console.log('  Logged in'); return; }
-
-    if (state === 'rate_limited') {
-      await screenshot(page, '00-x-rate-limited');
-      throw new Error(
-        `X has temporarily limited login — datacenter IP block, not an account issue.\n` +
-        `Export your browser cookies to ${COOKIE_PATH} to bypass this permanently.`
-      );
-    }
-
-    if (state === 'username') {
-      await typeIntoLoginField(page, 'jf-input-username_or_email', process.env.X_USERNAME);
-      await randomDelay(400, 800);
-      await clickContinueButton(page);
-      await waitForLoginForm(page).catch(() => {});
-      await settle(1000);
-      continue;
-    }
-
-    if (state === 'password') {
-      await typeIntoLoginField(page, 'jf-input-password', process.env.X_PASSWORD);
-      await randomDelay(400, 800);
-      await clickContinueButton(page);
-      await settle(3500);
-      continue;
-    }
-
-    if (state === 'challenge') {
-      console.log('  → Email challenge — entering email…');
-      await page.type('input[data-testid="ocfEnterTextTextInput"]', process.env.X_EMAIL, { delay: 50 });
-      await clickContinueButton(page);
-      await settle(2500);
-      continue;
-    }
-
-    const snap = await page.evaluate(() => ({
-      inputs: [...document.querySelectorAll('input')].map(e => ({
-        id: e.id, name: e.name, inert: e.hasAttribute('inert'), visible: !!e.offsetParent,
-      })),
-      pTexts: [...document.querySelectorAll('p')].map(p => p.textContent.trim())
-        .filter(Boolean).slice(0, 15),
-    }));
-    console.warn(' Unknown — inputs:', JSON.stringify(snap.inputs));
-    console.warn('  <p> texts:', JSON.stringify(snap.pTexts));
-    await settle(4000);
-  }
-  throw new Error('X login did not complete after 8 steps.');
-}
-
 export async function postToX(page, { text, imagePath }) {
-  console.log('\n🐦 X Agent starting…');
+  console.log('\n X Agent starting…');
 
-  // Inject cookies BEFORE any navigation so they are present on first request
-  if (hasSavedCookies()) {
-    console.log(`  → Injecting cookies from ${COOKIE_PATH}…`);
-    await injectXCookies(page);
-  } else {
-    console.log(`No cookie file at ${COOKIE_PATH} — will use form login`);
+  // Cookie injection is the only supported authentication path. If no
+  // cookie file exists, stop early with clear instructions instead of
+  // attempting a login flow that X is likely to block from a cloud IP.
+  if (!hasSavedCookies()) {
+    throw new Error(
+      `No cookie file found at ${COOKIE_PATH}.\n` +
+      'Export your X session cookies with the Cookie-Editor extension and ' +
+      `save them to ${COOKIE_PATH} before running this agent. See README.md ` +
+      'for the export steps. Form-based login is not supported in this build.'
+    );
   }
 
-  // Navigate once (cookies already set above)
+  console.log(`  → Injecting cookies from ${COOKIE_PATH}…`);
+  await injectXCookies(page);
+
   console.log('  → Navigating to x.com/home…');
   await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(1500);
@@ -217,19 +87,13 @@ export async function postToX(page, { text, imagePath }) {
     .then(() => true).catch(() => false);
 
   if (!loggedIn) {
-    if (hasSavedCookies()) {
-      throw new Error(
-        'Cookies injected but X still shows logged-out.\n' +
-        'Session has likely expired — re-export from Cookie-Editor and try again.'
-      );
-    }
-    await loginToX(page);
-    await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    await page.waitForSelector(SEL.loggedInProbe, { visible: true, timeout: 30_000 });
-  } else {
-    console.log('  → Authenticated');
+    throw new Error(
+      'Cookies were injected but X still shows logged-out.\n' +
+      'Your session has likely expired — re-export from Cookie-Editor and try again.'
+    );
   }
 
+  console.log('  → Authenticated');
   await screenshot(page, '01-x-home');
 
   // Open compose
@@ -255,7 +119,6 @@ export async function postToX(page, { text, imagePath }) {
   // Attach image
   console.log('  → Attaching image…');
 
-  // Verify the file exists before attempting upload
   const absImagePath = resolve(imagePath);
   const { existsSync } = await import('fs');
   if (!existsSync(absImagePath)) {
@@ -263,33 +126,31 @@ export async function postToX(page, { text, imagePath }) {
   }
 
   // Click the "Add photos or video" button to activate X's upload state.
-  const mediaBtn = await page.$('button[aria-label="Add photos or video"]');
+  const mediaBtn = await page.$(SEL.mediaButton);
   if (!mediaBtn) throw new Error('"Add photos or video" button not found in compose toolbar');
   await mediaBtn.click();
   await settle(400);
 
   // Upload via Puppeteer CDP (works in cloud — no OS dialog needed).
-  const fileInput = await page.$('input[data-testid="fileInput"]');
+  const fileInput = await page.$(SEL.fileInput);
   if (!fileInput) throw new Error('fileInput not found after clicking media button');
   await fileInput.uploadFile(absImagePath);
 
   // Manually dispatch React-compatible change/input events.
-  await page.evaluate(() => {
-    const input = document.querySelector('input[data-testid="fileInput"]');
+  // page.evaluate() runs in the browser, not Node, so the selector has to
+  // be passed in as an argument rather than closed over from SEL directly.
+  await page.evaluate((sel) => {
+    const input = document.querySelector(sel);
     if (!input) return;
     input.dispatchEvent(new Event('input',  { bubbles: true, cancelable: true }));
     input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-  });
+  }, SEL.fileInput);
 
-  // Wait for the upload preview to appear.
-  const previewAppeared = await page.waitForFunction(() => {
-    return !!(
-      document.querySelector('[data-testid="attachments"]') ||
-      document.querySelector('[data-testid="tweetPhoto"]') ||
-      document.querySelector('img[src^="blob:"]') ||
-      document.querySelector('[data-testid="media-viewer-clip-container"]')
-    );
-  }, { timeout: 30_000 }).then(() => true).catch(() => false);
+  // Wait for the upload preview to appear. Same reasoning as above: the
+  // selector list has to be passed into the browser context explicitly.
+  const previewAppeared = await page.waitForFunction((selectors) => {
+    return selectors.some((s) => document.querySelector(s));
+  }, { timeout: 30_000 }, SEL.uploadPreview).then(() => true).catch(() => false);
 
   if (!previewAppeared) {
     console.warn('  Upload preview not detected — continuing anyway (file may still be attached)');
@@ -317,12 +178,10 @@ export async function postToX(page, { text, imagePath }) {
   await randomDelay(1000, 2000);
   await screenshot(page, '05-x-verified');
 
-  const postUrl = await page.evaluate(() => {
-    const a = document.querySelector(
-      'article[data-testid="tweet"]:first-of-type a[href*="/status/"]'
-    );
+  const postUrl = await page.evaluate((firstTweetSel, permalinkSel) => {
+    const a = document.querySelector(`${firstTweetSel} ${permalinkSel}`);
     return a ? `https://x.com${a.getAttribute('href')}` : null;
-  });
+  }, SEL.firstTweet, SEL.permalinkSuffix);
 
   console.log(`  Verified! Tweet URL: ${postUrl ?? '(see screenshot)'}`);
   return { success: true, postUrl };
