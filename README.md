@@ -172,7 +172,6 @@ testmu-social-poster/
 ## Limitations
 
 - **Cookie expiry.** X session cookies expire in ~30 days. Re-export from Cookie-Editor when they do.
-- **X only (tested).** LinkedIn support is in `src/linkedin.js` but was not verified end-to-end.
 - **DOM drift.** X updates its frontend frequently. Selectors in `x-twitter.js` may need updating after major X redesigns.
 - **No CAPTCHA handling.** A CAPTCHA challenge stops the run. Established accounts with active cookies do not typically see them.
 - **No scheduling.** The tool posts once per run. Wrap in a cron job or queue worker for recurring posts.
