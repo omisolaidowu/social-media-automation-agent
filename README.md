@@ -74,25 +74,39 @@ Expected output:
    Post text: Just shipped something with TestMu AI Browser Cloud + Puppet…
    Image    : ./assets/post-image.png
 
-🔗 Live session viewer: https://automation.lambdatest.com/logs/...
+SessionManager: Auto-selected stealth user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...
 
-🐦 X Agent starting…
+Adapter: Connecting to session session_1785803701266_tl8gye via Puppeteer...
+
+ X Agent starting…
   → Injecting cookies from ./cookies/x-cookies.json…
   ✅ Injected 9 cookies (key: auth_token, ct0, twid)
   → Navigating to x.com/home…
-  → Authenticated ✅
+  → Authenticated
+  📸 Screenshot saved → screenshots/01-x-home-1785803734964.png
   → Opening compose box…
+  📸 Screenshot saved → screenshots/02-x-compose-open-1785803746001.png
   → Typing tweet…
   → Attaching image…
-  ✅ Image upload attempted
+  📸 Screenshot saved → screenshots/03-x-image-attached-1785803812983.png
+  Image upload attempted
   → Posting tweet…
-  ✅ Tweet submitted
+  📸 Screenshot saved → screenshots/04-x-posted-1785803824862.png
+  Tweet submitted
   → Verifying tweet went live…
-  ✅ Verified! Tweet URL: https://x.com/username/status/...
+  📸 Screenshot saved → screenshots/05-x-verified-1785803834393.png
+  Verified! Tweet URL: https://x.com/codingjab/status/2084438410245108144
 
+═══════════════════════════════════════════════════════════
 🎉  Run complete:
-  ✅  x   https://x.com/username/status/...
+  ✅  x   https://x.com/codingjab/status/2084438410245108144
+═══════════════════════════════════════════════════════════
 
+📸  All step screenshots saved to ./screenshots/
+Adapter: Saving profile social-poster-x on close...
+[ProfileService] Saved profile 'social-poster-x' (X cookies)
+Closing session session_1785803701266_tl8gye
+[EventsService] Stopped recording for session session_1785803701266_tl8gye, captured 1 events
 🏁  Session released. Done.
 ```
 
@@ -141,8 +155,7 @@ testmu-social-poster/
 ├── index.js                 ← session creation, orchestration, teardown
 ├── src/
 │   ├── x-twitter.js         ← full X post flow
-│   ├── linkedin.js          ← LinkedIn post flow (untested)
-│   └── utils.js             ← screenshot(), randomDelay(), retry()
+│   └── utils.js             ← screenshot(), randomDelay()
 ├── scripts/
 │   └── load-cookies.js      ← cookie injection utility
 ├── cookies/
@@ -150,7 +163,6 @@ testmu-social-poster/
 ├── assets/
 │   └── post-image.png       ← image to attach (add this yourself)
 ├── screenshots/             ← timestamped step screenshots
-├── .env
 ├── .env.example
 └── package.json
 ```
